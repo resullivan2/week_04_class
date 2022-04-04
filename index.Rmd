@@ -1,0 +1,282 @@
+---
+title: "Boardgame_an"
+author: "Rebecca"
+date: "4/4/2022"
+output: 
+  html_document
+    toc: true 
+    toc_depth: 2
+    toc_float: true
+    theme: yeti
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+library(tidyverse)
+library(here)
+
+#install.packages("janitor")
+library(janitor)
+```
+```{r}
+boardgames <- read_csv2(here::here("Data", "bgg_dataset.csv"))
+# uses semi colon, used more in UK
+
+```
+
+```{r}
+glimpse(boardgames)
+# notice some of the bfield are comma delimed lists
+
+
+
+
+```
+
+
+
+```{r}
+dim(boardgames)
+nrow(boardgames)
+
+
+```
+```{r}
+source(here::here ("Scripts", "01_Clean_Boardgames.R"))
+# this will not work with a Rmd file, only an R file
+```
+
+```{r}
+glimpse(boardgames_clean)
+#mechanics and domain are now multiple fiels, 1 or NA     NA or X
+```
+
+```{r}
+#`min Players` is a problem
+
+# need the janitor library
+boardgames_clean <- clean_names(boardgames_clean)
+  
+```
+
+
+```{r}
+
+boardgames_clean %>% 
+  count(year_published, sort = T) %>% 
+  ggplot( aes(x = year_published, 
+                y = n)) +
+  geom_line()
+
+
+```
+
+```{r}
+boardgames_clean %>% 
+  ggplot(aes( x=rating_average )) +
+  geom_histogram()
+
+
+```
+
+```{r}
+boardgames_clean %>% 
+  filter(year_published <= 0) %>% 
+  arrange(year_published)
+
+
+```
+
+```{r}
+# useing if_else to clean up some names
+
+# warning, do not always replace the name with the orginal
+boardgames_clean <-
+boardgames_clean %>% 
+  mutate(year_published = if_else(condition = year_published == 0,
+                                  true = NA_real_,
+                                  false = year_published))  # %>% 
+ # filter(year_published == 0)  # use this to check if it worked
+
+
+#NA is usually a logical, so we need to tell it which type
+```
+
+# how do features interact with raitings
+```{r}
+glimpse(boardgames_clean)
+
+```
+# look at min and max players
+
+```{r}
+
+boardgames_clean %>% 
+  mutate( players_greater_flag = if_else(max_players >= min_players,
+                                         T ,
+                                         F)) %>% 
+  count(players_greater_flag)
+
+
+# muates are the last field
+
+# 
+```
+```{r}
+boardgames_clean %>% 
+  mutate( players_greater_flag = if_else(max_players >= min_players,
+                                         T ,
+                                         F)) %>% 
+  filter (! players_greater_flag) %>% 
+  select(id, name, min_players, max_players)
+# probably no max players
+```
+
+```{r}
+# if max players == 0 then replavce with 1000, otherwiaw original
+
+boardgames_clean %>% 
+  mutate(max_players =  if_else( max_players == 0 , 999 , max_players)) %>% 
+  count(max_players)
+
+boardgames_clean <- 
+boardgames_clean %>% 
+  mutate(max_players =  if_else( max_players == 0 , 999 , max_players)) 
+
+```
+```{r}
+glimpse(boardgames_clean)
+```
+
+```{r}
+boardgames_clean %>% 
+  ggplot( aes(x=complexity_average)) +
+  geom_histogram()
+
+```
+```{r}
+boardgames_clean %>% 
+  ggplot( aes(x=owned_users)) +
+  geom_histogram()
+
+```
+```{r}
+boardgames_clean %>% 
+  ggplot( aes(x=play_time)) +
+  geom_histogram()
+
+```
+
+
+```{r} 
+#log histogram  to normalize the data more
+boardgames_clean %>% 
+    mutate((play_time = log10(play_time))) %>% 
+    ggplot( aes(x=play_time)) +
+  geom_histogram()
+
+```
+
+```{r} 
+#log histogram  to normalize the data more
+boardgames_clean %>% 
+    mutate((owned_users = log10(owned_users))) %>% 
+    ggplot( aes(x=owned_users)) +
+  geom_histogram()
+
+```
+
+
+
+```{r} 
+#log histogram  to normalize the data more
+boardgames_owned <-
+  boardgames_clean %>% 
+    mutate((owned_users_log10 = log10(owned_users))) %>% 
+      select (id , name , owned_users, owned_users_log10)
+
+boardgames_owned %>% 
+    ggplot( aes(x=owned_users_log10)) +
+  geom_histogram()
+
+
+
+
+
+
+
+```
+```{r}
+# note the NA's
+summary(boardgames_clean)
+```
+
+# NA values 
+## imputation
+```{r}
+ #playtime 
+
+median( boardgames_clean$play_time, na.rm = T)
+# fill with the median
+```
+
+```{r}
+boardgames_clean %>% 
+  mutate( play_time = if_else( is.na(play_time), 
+                               median(play_time, rm.na = T), 
+                               play_time)) %>% 
+  summary()
+```
+```{r}
+boardgames_clean %>% 
+  mutate( play_time = if_else( is.na(play_time), 
+                               median(play_time, rm.na = T), 
+                               play_time)) %>% 
+  summary()
+```
+
+
+```{r}
+
+# owned yusers
+```
+
+```{r}
+boardgames_clean %>% 
+  mutate( play_time = if_else( is.na(play_time), 
+                               median(play_time, rm.na = T), 
+                               play_time) ,
+           owned_users = if_else( is.na(owned_users), 
+                               median(owned_users, rm.na = T), 
+                               owned_users))%>% 
+  summary()
+```
+```{r}
+boardgames_clean %>% 
+  mutate( play_time = replace_na(owned_users, median_ownedusers, na.rm = T)) %>% 
+
+  summary()
+```
