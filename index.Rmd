@@ -38,7 +38,7 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 library(tidyverse)
 library(here)
 
-#install.packages("janitor")
+install.packages("janitor")
 library(janitor)
 ```
 ```{r}
@@ -250,19 +250,21 @@ boardgames_clean %>%
                                play_time)) %>% 
   summary()
 ```
-```{r}
-boardgames_clean %>% 
-  mutate( play_time = if_else( is.na(play_time), 
-                               median(play_time, rm.na = T), 
-                               play_time)) %>% 
-  summary()
-```
 
 
 ```{r}
 
 # owned yusers
 ```
+  boardgames_clean %>% 
+  mutate(play_time = if_else(is.na(play_time), 
+                             median(play_time, na.rm = T),
+                             play_time),
+         owned_users = if_else(is.na(owned_users),
+                               median(owned_users, na.rm = T),
+                               owned_users))
+
+
 
 ```{r}
 boardgames_clean %>% 
@@ -274,9 +276,192 @@ boardgames_clean %>%
                                owned_users))%>% 
   summary()
 ```
+
+
+```{r}
+
+boardgames_clean <- 
+  boardgames_clean %>% 
+  mutate(play_time = if_else(is.na(play_time), 
+                             median(play_time, na.rm = T),
+                             play_time),
+         owned_users = if_else(is.na(owned_users),
+                               median(owned_users, na.rm = T),
+                               owned_users))
+
+summary(boardgames_clean)
+```
+
 ```{r}
 boardgames_clean %>% 
   mutate( play_time = replace_na(owned_users, median_ownedusers, na.rm = T)) %>% 
 
   summary()
+```
+
+
+# mutlitple conditions
+Any games with a play_time less than 30 minutes should be considered “fast games”
+Any games with a play_time between 30 minutes and 120 minutes should be considered “average games”
+Any games with a play_time greater than 120 minutes should be considered “long games”
+```{r}
+boardgames_clean %>% 
+  ggplot( aes(x=play_time)) +
+  geom_histogram() +
+  scale_x_continuous(trans ="log10")
+
+```
+# break in segments
+```{r}
+boardgames_clean <- boardgames_clean %>% 
+    mutate (play_time_bins = case_when(
+             play_time <= 30 ~ "fast game" ,
+              play_time > 30 & play_time <= 120  ~ "average game",
+              play_time > 120 ~ "long game" 
+                                     )) %>% 
+  count(play_time_bins)
+
+```
+* Any games with `max_players` of 3 or less should be considered “small games”
+* Any games with `max_players` between 3 and 5 should be considered “medium games”
+* Any games with `max_players` between 5 and 10 should be considered “large games”
+* Any games with `max_players` greater than 10 should be considered “huge games”
+
+```{r}
+boardgames_clean <-
+boardgames_clean %>% 
+    mutate( max_player_bins = case_when(
+             max_players <= 3 ~ "small games" ,
+              max_players > 3 & max_players <= 5  ~ "medium game",
+               max_players > 5 & max_players <= 10  ~ "large game",
+              max_players > 10 ~ "huge game" ,
+             TRUE ~ as.character(max_players)
+                                     )) %>% 
+  count(max_players)
+```
+```{r}
+
+boardgames_clean %>% 
+    mutate (mechanic_cooperative_game = if_else( mechanic_cooperative_game == 1, T, F)) %>% 
+  count(mechanic_cooperative_game)
+
+```
+```{r}
+
+boardgames_clean %>% 
+    mutate (mechanic_cooperative_game = if_else( is.na(mechanic_cooperative_game), F, T)) %>% 
+  count(mechanic_cooperative_game)
+```
+# across, do the smae thign to all
+#only used in mutate or summarize
+# works with all tidy select helpers
+```{r}
+
+boardgames_clean %>% 
+  mutate(across(starts_with("mechanic"), ~if_else( is.na(.), F, T)))
+
+#by default overwirtite 
+
+```
+
+
+```{r}
+boardgames_clean %>% 
+    mutate (across (c(play_time, owned_users), ~log10(.), .names = "{.col}_log")) %>% 
+    select (play_time, owned_users)
+
+```
+
+
+```{r}
+boardgames_clean %>% 
+  summarise(across(where(is.double), ~median(., rm.na = T)))
+```
+# how do we break this up by another variable
+```{r}
+boardgames_clean %>% 
+  group_by(play_time_bins) %>% 
+  summarise(across(where(is.double), ~median(.))) %>% 
+  ungroup()
+
+```
+
+
+```{r}
+is.na(boardgames_clean$year_published)
+  
+
+boardgames_clean %>% 
+  summarise(across(everything(), ~sum(is.na(.))))
+
+```
+## graphs
+```{r}
+boardgames_year <- 
+boardgames_clean %>% 
+  count(year_published)
+
+```
+
+```{r}
+glimpse(boardgames_year)
+
+```
+
+```{r}
+boardgames_year %>% 
+  ggplot( aes (x=year_published, 
+               y = n)) +
+  geom_line() + 
+  theme_minimal() +
+  theme(axis.title = element_text(face="bold",
+                                  size = 10) ,
+        axis.title.x = element_text(face="italic"))
+
+```
+
+```{r}
+boardgames_year %>% 
+  ggplot( aes (x=year_published, 
+               y = n)) +
+  geom_line() + 
+  labs(x="Year Published", 
+      y  = "Count", 
+        title = "Count of Bordgames pyublished by Yeatr" ,
+      subtitle = "based upon data from Board Games Geek", 
+      caption = "by name", 
+      tag = "tag") +
+  theme_minimal() +
+  theme(axis.title = element_text(face="bold",
+                                  size = 10) ,
+        axis.title.x = element_text(face="italic"))
+
+```
+```{r}
+
+```
+there are many options for scale 
+scale_y
+ and scale_x
+ 
+
+```{r}
+boardgames_year %>% 
+  ggplot( aes (x=year_published, 
+               y = n)) +
+  geom_line(color = "blue", size = 1) + 
+  coord_cartesian(xlim = c(1900, 2020))  +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(1900, 2020, 10))
+  labs(x="Year Published", 
+      y  = "Count", 
+        title = "Count of Bordgames pyublished by Yeatr" ,
+      subtitle = "based upon data from Board Games Geek", 
+      caption = "by name", 
+      tag = "tag") +
+  theme_minimal() +
+  theme(axis.title = element_text(face="bold",
+                                  size = 10) ,
+        axis.title.x = element_text(face="italic"))
+
 ```
